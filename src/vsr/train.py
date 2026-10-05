@@ -78,6 +78,15 @@ def train(config_path, data_dir, output_dir, stage='B'):
     dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=0)
     
     model = RecurrentVSR(scale=config.scale, channels=config.channels, num_blocks=config.blocks).to(device)
+    
+    if stage == 'B':
+        stage_a_ckpt = out_dir / "model_stage_A_epoch_100.pth"
+        if stage_a_ckpt.exists():
+            print(f"Loading Stage A pre-trained weights from {stage_a_ckpt}...")
+            model.load_state_dict(torch.load(stage_a_ckpt, map_location=device))
+        else:
+            print(f"WARNING: Could not find {stage_a_ckpt}. Training Stage B from scratch!")
+            
     criterion = VSRLoss(lambda_temporal=config.lambda_temporal).to(device)
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
