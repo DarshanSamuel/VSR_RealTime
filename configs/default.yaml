@@ -1,0 +1,24 @@
+scale: 2
+
+# Network architecture
+channels: 16
+blocks: 2
+
+# Classical fusion parameters
+alpha: 0.8
+tau: 12.0
+use_back_projection: true
+
+# Training parameters
+lambda_temporal: 0.1
+learning_rate: 0.001
+batch_size: 16
+epochs: 100
+
+# Motion estimation
+# options: phase_correlation, lucas_kanade, farneback, dis_ultrafast, dis_fast, dis_medium
+motion_estimator: dis_fast
+warp_interpolation: bicubic # bilinear, bicubic, lanczos
+
+# Hardware
+device: cpu # auto, cpu, cuda, mps

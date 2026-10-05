@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.env
+
+# Pytest
+.pytest_cache/
+
+# Outputs and Datasets
+outputs/
+processed_dataset/
+*.mp4
+*.avi
+*.npy
+
+# OS Files
+.DS_Store
+Thumbs.db
