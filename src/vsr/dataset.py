@@ -161,6 +161,10 @@ def build_dataset_from_vimeo90k(vimeo_dir: str, output_dir: str, config, split: 
         # seq_path is like '00001/0001'
         seq_dir = vimeo_dir / "sequences" / seq_path
         if not seq_dir.exists():
+            # Fallback for some Kaggle subsets that use 'sequence' instead
+            seq_dir = vimeo_dir / "sequence" / seq_path
+            
+        if not seq_dir.exists():
             continue
             
         clip_out_path = out_dir / f"vimeo_{seq_path.replace('/', '_')}"
