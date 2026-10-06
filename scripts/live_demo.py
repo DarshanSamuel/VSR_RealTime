@@ -77,7 +77,19 @@ def main():
                 break
             continue
             
-        ycrcb = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2YCrCb)
+        # Simulate Low-Resolution input by downsizing the camera feed
+        # We target a width of 320 (e.g. 320x240) to ensure CPU real-time speeds (25+ FPS)
+        target_lr_width = 320
+        h_orig, w_orig = bgr_frame.shape[:2]
+        target_lr_height = int(h_orig * (target_lr_width / w_orig))
+        
+        # Ensure dimensions are multiples of config.scale (2)
+        target_lr_width = target_lr_width - (target_lr_width % config.scale)
+        target_lr_height = target_lr_height - (target_lr_height % config.scale)
+        
+        bgr_lr = cv2.resize(bgr_frame, (target_lr_width, target_lr_height), interpolation=cv2.INTER_AREA)
+            
+        ycrcb = cv2.cvtColor(bgr_lr, cv2.COLOR_BGR2YCrCb)
         y_t, cr_t, cb_t = cv2.split(ycrcb)
         
         h_lr, w_lr = y_t.shape
