@@ -21,4 +21,3 @@ num_workers: 4
 # options: phase_correlation, lucas_kanade, farneback, dis_ultrafast, dis_fast, dis_medium
 motion_estimator: dis_fast
 warp_interpolation: bicubic # bilinear, bicubic, lanczos
-
