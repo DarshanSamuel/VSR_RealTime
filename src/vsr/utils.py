@@ -12,11 +12,12 @@ class Config:
     use_back_projection: bool = True
     lambda_temporal: float = 0.1
     learning_rate: float = 0.001
-    batch_size: int = 16
+    batch_size: int = 64
     epochs: int = 100
     motion_estimator: str = "dis_fast"
     warp_interpolation: str = "bicubic"
-    device: str = "cpu"
+    device: str = "cuda"
+    num_workers: int = 4
 
 def load_config(path: str) -> Config:
     if not Path(path).exists():

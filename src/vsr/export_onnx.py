@@ -37,7 +37,6 @@ def export_to_onnx(config_path, checkpoint_path, output_path, quantize=False):
         'conf_map': {0: 'batch_size', 2: 'height', 3: 'width'},
         'output': {0: 'batch_size', 2: 'hr_height', 3: 'hr_width'}
     }
-    
     torch.onnx.export(
         model, 
         (dummy_lr, dummy_warped_hr, dummy_conf_map), 
@@ -49,6 +48,31 @@ def export_to_onnx(config_path, checkpoint_path, output_path, quantize=False):
         output_names=['output'],
         dynamic_axes=dynamic_axes
     )
+    
+    # Strip the terribly slow Bicubic Resize node from the ONNX graph for CPU execution
+    try:
+        import onnx
+        print("Pruning slow Resize nodes from ONNX graph...")
+        onnx_model = onnx.load(output_path)
+        
+        add_nodes = [n for n in onnx_model.graph.node if n.op_type == 'Add']
+        resize_nodes = [n for n in onnx_model.graph.node if n.op_type == 'Resize']
+        
+        if add_nodes and resize_nodes:
+            add_node = add_nodes[-1]
+            resize_node = resize_nodes[-1]
+            
+            d2s_output = [inp for inp in add_node.input if inp != resize_node.output[0]][0]
+            onnx_model.graph.output[0].name = d2s_output
+            
+            onnx_model.graph.node.remove(add_node)
+            onnx_model.graph.node.remove(resize_node)
+            
+            onnx.save(onnx_model, output_path)
+            print("Successfully pruned graph! Model will output the residual directly.")
+    except Exception as e:
+        print(f"Warning: Could not prune ONNX graph. {e}")
+
     print(f"Exported ONNX model to {output_path}")
     
     if quantize:

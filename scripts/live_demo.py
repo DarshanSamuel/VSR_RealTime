@@ -122,7 +122,13 @@ def main():
                 # compute confidence map in LR
                 conf_map_lr = compute_confidence_map_numpy(y_t_f32, warped_x_prev_f32, config.scale, config.tau / 255.0)
                 
-                out_f32 = inferencer.infer(y_t_f32, warped_x_prev_f32, conf_map_lr)
+                # The fast ONNX model now outputs the residual (from -1.0 to 1.0 approx)
+                residual_f32 = inferencer.infer(y_t_f32, warped_x_prev_f32, conf_map_lr)
+                
+                # Add the residual to our OpenCV bicubic upsample
+                y_t_bicubic_f32 = y_t_bicubic.astype(np.float32) / 255.0
+                out_f32 = y_t_bicubic_f32 + residual_f32
+                
                 x_hat_t = np.clip(out_f32 * 255.0, 0, 255).astype(np.uint8)
                 t_net1 = time.perf_counter()
                 t_net = (t_net1 - t_net0) * 1000
@@ -139,18 +145,41 @@ def main():
         t1 = time.time()
         fps = 1.0 / (t1 - t0 + 1e-6)
         
-        side_by_side = np.hstack((bgr_bicubic, bgr_hr))
+        # 4th panel: the original Low-Res frame scaled up with nearest-neighbor to show true pixelation
+        lr_vis = cv2.resize(bgr_lr, (w_hr, h_hr), interpolation=cv2.INTER_NEAREST)
         
-        cv2.putText(side_by_side, f"Bicubic {config.scale}x", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.putText(side_by_side, f"{mode} VSR {config.scale}x", (w_hr + 10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.putText(side_by_side, f"Flow: {flow_ms:.1f}ms", (w_hr + 10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        if mode == "Neural":
-            cv2.putText(side_by_side, f"Net: {t_net:.1f}ms", (w_hr + 10, 110), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(side_by_side, f"Total FPS: {fps:.1f}", (w_hr + 10, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        if mode == "Neural" and 'residual_f32' in locals():
+            res_vis = np.clip(np.abs(residual_f32) * 5.0 * 255.0, 0, 255).astype(np.uint8)
+            res_bgr = cv2.applyColorMap(res_vis, cv2.COLORMAP_JET)
         else:
-            cv2.putText(side_by_side, f"Total FPS: {fps:.1f}", (w_hr + 10, 110), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # Blank screen for classical mode
+            res_bgr = np.zeros_like(bgr_hr)
+            
+        top_row = np.hstack((bgr_bicubic, bgr_hr))
+        bottom_row = np.hstack((lr_vis, res_bgr))
+        grid = np.vstack((top_row, bottom_row))
         
-        cv2.imshow("VSR Comparison", side_by_side)
+        cv2.putText(grid, f"Bicubic {config.scale}x", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.putText(grid, f"{mode} VSR {config.scale}x", (w_hr + 10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        
+        cv2.putText(grid, "Original Input (Nearest)", (10, h_hr + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+        if mode == "Neural":
+            cv2.putText(grid, "Neural 'Brain' (Edges)", (w_hr + 10, h_hr + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+        
+        cv2.putText(grid, f"Flow: {flow_ms:.1f}ms", (w_hr + 10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        if mode == "Neural":
+            cv2.putText(grid, f"Net: {t_net:.1f}ms", (w_hr + 10, 110), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(grid, f"Total FPS: {fps:.1f}", (w_hr + 10, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        else:
+            cv2.putText(grid, f"Total FPS: {fps:.1f}", (w_hr + 10, 110), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        
+        # Scale the grid down to fit on laptop screens
+        max_height = 720
+        if grid.shape[0] > max_height:
+            scale_ratio = max_height / grid.shape[0]
+            grid = cv2.resize(grid, (int(grid.shape[1] * scale_ratio), int(grid.shape[0] * scale_ratio)))
+            
+        cv2.imshow("VSR Comparison", grid)
         
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):

@@ -75,7 +75,7 @@ def train(config_path, data_dir, output_dir, stage='B'):
     print(f"Auto-detected sequence length: {detected_length} frames (Using {seq_length} for Stage {stage})")
     
     dataset = VSRDataset(data_dir, sequence_length=seq_length)
-    dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=0)
+    dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers)
     
     model = RecurrentVSR(scale=config.scale, channels=config.channels, num_blocks=config.blocks).to(device)
     
