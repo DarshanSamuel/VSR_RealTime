@@ -3,8 +3,14 @@ import numpy as np
 
 class ONNXInferencer:
     def __init__(self, model_path: str):
-        # Enforce CPU execution provider as requested
-        self.session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+        # Enforce CPU execution provider as requested and optimize threading
+        opts = ort.SessionOptions()
+        # Prevent thread thrashing on many-core CPUs (like Ryzen) for small models
+        opts.intra_op_num_threads = 2
+        opts.inter_op_num_threads = 1
+        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        
+        self.session = ort.InferenceSession(model_path, sess_options=opts, providers=['CPUExecutionProvider'])
         
     def infer(self, lr: np.ndarray, warped_hr_prev: np.ndarray, conf_map: np.ndarray) -> np.ndarray:
         """
