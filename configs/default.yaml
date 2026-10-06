@@ -22,5 +22,3 @@ num_workers: 4
 motion_estimator: dis_fast
 warp_interpolation: bicubic # bilinear, bicubic, lanczos
 
-# Hardware
-device: cpu # auto, cpu, cuda, mps
