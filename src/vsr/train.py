@@ -88,7 +88,11 @@ def train(config_path, data_dir, output_dir, stage='B'):
             print(f"WARNING: Could not find {stage_a_ckpt}. Training Stage B from scratch!")
             
     criterion = VSRLoss(lambda_temporal=config.lambda_temporal).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+    
+    # Stage B is fine-tuning; use a 10x smaller learning rate to preserve Stage A weights
+    lr = config.learning_rate if stage == 'A' else config.learning_rate / 10.0
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs)
     
     log_file = open(out_dir / f"train_log_stage_{stage}.csv", "w", newline="")
