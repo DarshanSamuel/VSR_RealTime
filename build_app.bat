@@ -21,8 +21,8 @@ if errorlevel 1 (
 )
 
 echo.
-echo Building .exe with PyInstaller...
-echo.
+REM Ensure PyInstaller suppresses onnxruntime from crashing isolated subprocess
+python -c "import PyInstaller.building.build_main as m; p=m.__file__; c=open(p, encoding='utf-8').read(); c='suppressed_imports += [\'onnxruntime\']\n' + c if 'suppressed_imports += [\'onnxruntime\']' not in c and (c:=c.replace('suppressed_imports += [\'pyqtgraph.canvas\']', 'suppressed_imports += [\'pyqtgraph.canvas\', \'onnxruntime\']')) else c; open(p, 'w', encoding='utf-8').write(c)" 2>nul
 
 pyinstaller app\vsr_app.spec --noconfirm --distpath dist --workpath build\pyinstaller
 
