@@ -12,6 +12,10 @@ ENV/
 # Pytest
 .pytest_cache/
 
+# Build & Dist
+build/
+dist/
+
 # Outputs and Datasets
 outputs/
 processed_dataset/
