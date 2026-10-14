@@ -26,6 +26,11 @@ python -c "import PyInstaller.building.build_main as m; p=m.__file__; c=open(p, 
 
 pyinstaller app\vsr_app.spec --noconfirm --distpath dist --workpath build\pyinstaller
 
+REM Remove any conflicting outdated VC runtime DLLs from Qt5\bin that clash with modern Windows/Python 3.14 runtime
+if exist "dist\VSR_RealTime\_internal\PyQt5\Qt5\bin\MSVCP140.dll" (
+    del /f /q "dist\VSR_RealTime\_internal\PyQt5\Qt5\bin\MSVCP140*.dll" "dist\VSR_RealTime\_internal\PyQt5\Qt5\bin\VCRUNTIME140*.dll" >nul 2>&1
+)
+
 echo.
 if exist "dist\VSR_RealTime\VSR_RealTime.exe" (
     echo ============================================

@@ -18,17 +18,24 @@ import numpy as np
 import cv2
 
 # ---------------------------------------------------------------------------
-# Ensure the project root is on sys.path so we can import src.vsr.*
+# Path setup for both script mode and PyInstaller frozen mode
 # ---------------------------------------------------------------------------
-_APP_DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.dirname(_APP_DIR)
+if getattr(sys, 'frozen', False):
+    _APP_DIR = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+    _PROJECT_ROOT = _APP_DIR
+else:
+    _APP_DIR = os.path.dirname(os.path.abspath(__file__))
+    _PROJECT_ROOT = os.path.dirname(_APP_DIR)
+
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
+
+import traceback
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QComboBox, QFileDialog, QGroupBox,
-    QStatusBar, QSplitter, QFrame, QSizePolicy, QStyle
+    QStatusBar, QSplitter, QFrame, QSizePolicy, QStyle, QMessageBox
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize
 from PyQt5.QtGui import QImage, QPixmap, QFont, QIcon
@@ -46,7 +53,7 @@ def detect_cameras(max_index: int = 5) -> list[tuple[int, str]]:
     """Probe camera indices 0..max_index and return those that open."""
     cameras: list[tuple[int, str]] = []
     for idx in range(max_index):
-        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        cap = cv2.VideoCapture(idx)
         if cap.isOpened():
             w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -559,28 +566,41 @@ class MainWindow(QMainWindow):
 #  Entry point
 # ═══════════════════════════════════════════════════════════════════════════
 def main():
-    app = QApplication(sys.argv)
-    app.setStyle("Fusion")
+    try:
+        app = QApplication(sys.argv)
+        app.setStyle("Fusion")
 
-    # Dark palette for native widgets that don't get stylesheet overrides
-    from PyQt5.QtGui import QPalette, QColor
-    palette = QPalette()
-    palette.setColor(QPalette.Window, QColor("#11111b"))
-    palette.setColor(QPalette.WindowText, QColor("#cdd6f4"))
-    palette.setColor(QPalette.Base, QColor("#181825"))
-    palette.setColor(QPalette.AlternateBase, QColor("#1e1e2e"))
-    palette.setColor(QPalette.ToolTipBase, QColor("#1e1e2e"))
-    palette.setColor(QPalette.ToolTipText, QColor("#cdd6f4"))
-    palette.setColor(QPalette.Text, QColor("#cdd6f4"))
-    palette.setColor(QPalette.Button, QColor("#313244"))
-    palette.setColor(QPalette.ButtonText, QColor("#cdd6f4"))
-    palette.setColor(QPalette.Highlight, QColor("#89b4fa"))
-    palette.setColor(QPalette.HighlightedText, QColor("#1e1e2e"))
-    app.setPalette(palette)
+        # Dark palette for native widgets that don't get stylesheet overrides
+        from PyQt5.QtGui import QPalette, QColor
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor("#11111b"))
+        palette.setColor(QPalette.WindowText, QColor("#cdd6f4"))
+        palette.setColor(QPalette.Base, QColor("#181825"))
+        palette.setColor(QPalette.AlternateBase, QColor("#1e1e2e"))
+        palette.setColor(QPalette.ToolTipBase, QColor("#1e1e2e"))
+        palette.setColor(QPalette.ToolTipText, QColor("#cdd6f4"))
+        palette.setColor(QPalette.Text, QColor("#cdd6f4"))
+        palette.setColor(QPalette.Button, QColor("#313244"))
+        palette.setColor(QPalette.ButtonText, QColor("#cdd6f4"))
+        palette.setColor(QPalette.Highlight, QColor("#89b4fa"))
+        palette.setColor(QPalette.HighlightedText, QColor("#1e1e2e"))
+        app.setPalette(palette)
 
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec_())
+        window = MainWindow()
+        window.show()
+        sys.exit(app.exec_())
+    except Exception as e:
+        err = traceback.format_exc()
+        try:
+            with open("crash_log.txt", "w", encoding="utf-8") as f:
+                f.write(err)
+        except Exception:
+            pass
+        try:
+            QMessageBox.critical(None, "VSR Real-Time Error", f"Failed to start VSR Real-Time:\n\n{err}")
+        except Exception:
+            pass
+        sys.exit(1)
 
 
 if __name__ == "__main__":

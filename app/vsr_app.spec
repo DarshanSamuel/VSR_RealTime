@@ -60,6 +60,14 @@ exe = EXE(
     icon=None,          # Set to 'app/icon.ico' if you add an icon
 )
 
+# Filter out outdated VC++ runtime DLLs bundled by PyQt5 that cause MSVCP140.dll access violation 0xc0000005
+a.binaries = [
+    b for b in a.binaries
+    if not (
+        'pyqt5' in b[0].lower() and any(dll in b[0].lower() for dll in ('msvcp140', 'vcruntime140'))
+    )
+]
+
 coll = COLLECT(
     exe,
     a.binaries,
