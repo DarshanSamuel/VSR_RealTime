@@ -34,7 +34,7 @@ a = Analysis(
         'yaml',
         'numpy',
     ],
-    hookspath=[],
+    hookspath=[os.path.join(PROJECT_ROOT, 'app', 'hooks')],
     hooksconfig={},
     runtime_hooks=[],
     excludes=['torch', 'torchvision', 'matplotlib', 'tkinter'],
