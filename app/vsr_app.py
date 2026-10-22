@@ -14,6 +14,21 @@ Usage (packaged .exe):
 import sys
 import os
 import time
+import threading
+import subprocess
+
+# Critical: onnxruntime must be imported before PyQt5 on Windows to prevent
+# CRT/TLS initialization conflict (0xC0000005 crash).
+try:
+    import onnxruntime as _ort
+except Exception:
+    pass
+
+# On Windows, force OpenCV to prioritize DirectShow (DSHOW) over Media Foundation (MSMF).
+# MSMF frequently deadlocks or stalls on external USB cameras (such as Logitech Brio).
+os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
+os.environ["OPENCV_LOG_LEVEL"] = "ERROR"
+
 import numpy as np
 import cv2
 
@@ -49,16 +64,47 @@ from src.vsr.infer_onnx import ONNXInferencer
 
 
 # ── Utility: detect available cameras ──────────────────────────────────────
+def get_camera_names() -> list[str]:
+    """Retrieve friendly hardware names of connected cameras via Windows PnP."""
+    if os.name != 'nt':
+        return []
+    try:
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+
+        cmd = [
+            'powershell', '-NoProfile', '-NonInteractive', '-Command',
+            'Get-CimInstance Win32_PnPEntity | Where-Object { $_.PNPClass -eq \'Camera\' } | Select-Object -ExpandProperty Name'
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=3, startupinfo=startupinfo)
+        if res.returncode == 0:
+            lines = [line.strip() for line in res.stdout.strip().splitlines() if line.strip()]
+            return lines
+    except Exception:
+        pass
+    return []
+
+
 def detect_cameras(max_index: int = 5) -> list[tuple[int, str]]:
-    """Probe camera indices 0..max_index and return those that open."""
+    """Probe camera indices 0..max_index using DirectShow (cv2.CAP_DSHOW).
+    
+    DirectShow reliably opens both integrated webcams and USB cameras (e.g. Logitech Brio)
+    without hanging or deadlocking.
+    """
+    friendly_names = get_camera_names()
     cameras: list[tuple[int, str]] = []
     for idx in range(max_index):
-        cap = cv2.VideoCapture(idx)
-        if cap.isOpened():
-            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            cameras.append((idx, f"Camera {idx}  ({w}×{h})"))
-            cap.release()
+        try:
+            cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+            if cap.isOpened():
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                name = friendly_names[idx] if idx < len(friendly_names) else f"Camera {idx}"
+                cameras.append((idx, f"Camera {idx}: {name} ({w}×{h})"))
+                cap.release()
+        except Exception:
+            pass
     return cameras
 
 
@@ -275,12 +321,19 @@ class MainWindow(QMainWindow):
         gi_layout.setSpacing(6)
 
         self.combo_source = QComboBox()
-        self.combo_source.setMinimumWidth(200)
+        self.combo_source.setMinimumWidth(240)
         self.combo_source.setStyleSheet(self._combo_style())
         for idx, label in self._cameras:
             self.combo_source.addItem(label, idx)
         self.combo_source.addItem("📂  Video File…", "file")
         gi_layout.addWidget(self.combo_source)
+
+        self.btn_refresh_cam = QPushButton("🔄")
+        self.btn_refresh_cam.setToolTip("Refresh camera list")
+        self.btn_refresh_cam.setFixedWidth(32)
+        self.btn_refresh_cam.setStyleSheet(self._btn_secondary_style())
+        gi_layout.addWidget(self.btn_refresh_cam)
+
         grp_input.layout().addLayout(gi_layout)
         tb_layout.addWidget(grp_input)
 
@@ -378,10 +431,29 @@ class MainWindow(QMainWindow):
     # ── Signal wiring ──────────────────────────────────────────────────────
     def _connect_signals(self):
         self.btn_browse_model.clicked.connect(self._browse_model)
+        self.btn_refresh_cam.clicked.connect(self.refresh_cameras)
         self.combo_source.activated.connect(self._on_source_changed)
         self.btn_start.clicked.connect(self._start)
         self.btn_stop.clicked.connect(self._stop)
         self.combo_mode.currentTextChanged.connect(self._on_mode_changed)
+
+    def refresh_cameras(self):
+        """Re-scan connected cameras and update the combo box."""
+        curr_data = self.combo_source.currentData()
+        self._cameras = detect_cameras()
+        self.combo_source.blockSignals(True)
+        self.combo_source.clear()
+        selected_idx = 0
+        for i, (idx, label) in enumerate(self._cameras):
+            self.combo_source.addItem(label, idx)
+            if idx == curr_data:
+                selected_idx = i
+        self.combo_source.addItem("📂  Video File…", "file")
+        if curr_data == "file":
+            selected_idx = self.combo_source.count() - 1
+        self.combo_source.setCurrentIndex(selected_idx)
+        self.combo_source.blockSignals(False)
+        self.status_bar.showMessage(f"Detected {len(self._cameras)} camera(s).", 3000)
 
     # ── Callbacks ──────────────────────────────────────────────────────────
     def _browse_model(self):
